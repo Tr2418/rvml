@@ -228,7 +228,7 @@
       <span class="option-label"><span class="letter">🪵</span> Wood</span>
       <span class="option-label"><span class="letter">💎</span> Treasure</span>
     </div>
-    <div id="stats-text">Score: 0% • Correct: 0 • Question: 0/0</div>
+    <div id="stats-text">Score: 0% • Correct: 0 • Wrong: 0 • Question: 0/0</div>
   </div>
 
   <!-- Game Canvas -->
@@ -329,6 +329,23 @@
     } catch (_err) {
       return null;
     }
+
+    function resolveStudentName() {
+      if (window.NEUROQUEST_PROFILE && typeof window.NEUROQUEST_PROFILE.name === 'string') {
+        return window.NEUROQUEST_PROFILE.name.trim();
+      }
+      try {
+        var profileRaw = localStorage.getItem('neuroquest_profile');
+        if (!profileRaw) return 'Student';
+        var profile = JSON.parse(profileRaw);
+        if (profile && typeof profile.name === 'string' && profile.name.trim()) {
+          return profile.name.trim();
+        }
+      } catch (_err) {
+        return 'Student';
+      }
+      return 'Student';
+    }
   }
 
   const loadedQuestions = parseStoredQuestions();
@@ -367,7 +384,8 @@
     gameComplete: false,
     // Session metrics
     correctAnswers: 0,
-    wrongAnswers: 0
+    wrongAnswers: 0,
+    studentName: resolveStudentName()
   };
 
   // Default safe starting position (bottom-center crossroads)
@@ -407,9 +425,25 @@
     return ok;
   };
 
+  window.setNeuroQuestProfile = function (profile) {
+    if (!profile || typeof profile.name !== 'string' || !profile.name.trim()) return false;
+    state.studentName = profile.name.trim();
+    try {
+      localStorage.setItem('neuroquest_profile', JSON.stringify(profile));
+    } catch (_err) {
+      // ignore storage issues
+    }
+    return true;
+  };
+
   window.addEventListener('message', function (event) {
-    if (!event || !event.data || event.data.type !== 'NEUROQUEST_SET_QUESTIONS') return;
-    window.setNeuroQuestQuestions(event.data.questions);
+    if (!event || !event.data) return;
+    if (event.data.type === 'NEUROQUEST_SET_QUESTIONS') {
+      window.setNeuroQuestQuestions(event.data.questions);
+    }
+    if (event.data.type === 'NEUROQUEST_SET_PROFILE') {
+      window.setNeuroQuestProfile(event.data.profile);
+    }
   });
 
   // ================================================================
@@ -1071,13 +1105,13 @@
     const totalQuestions = questions.length || 1;
     const score = Math.round((state.correctAnswers / totalQuestions) * 100);
     return {
-      studentName: 'Student',
+      studentName: state.studentName,
       score: score,
       correctAnswers: state.correctAnswers,
       wrongAnswers: state.wrongAnswers,
       chaptersCompleted: 1,
       gameProgress: 'completed',
-      answeredQuestions: state.correctAnswers,
+      answeredQuestions: state.correctAnswers + state.wrongAnswers,
       totalQuestions: questions.length,
       completedAt: new Date().toISOString()
     };

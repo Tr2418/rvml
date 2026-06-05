@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Jungle Explorer - Educational Game for Kids</title>
+  <title>NeuroQuest Island - Adaptive Learning Game</title>
   <!-- Pixel font from Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
@@ -38,7 +38,7 @@
     }
 
     /* ============================================================
-       TOP HUD – question text + answer options (A/B/C/D)
+       TOP HUD – question text + answer objects
        ============================================================ */
     #hud {
       position: absolute;
@@ -79,6 +79,13 @@
     }
     .option-label .letter {
       color: #ffd700;
+    }
+    #stats-text {
+      margin-top: 6px;
+      color: #bde9ff;
+      font-size: 8px;
+      text-shadow: 2px 2px 0 #000;
+      letter-spacing: 0.4px;
     }
 
     /* ============================================================
@@ -214,13 +221,14 @@
 
   <!-- HUD -->
   <div id="hud">
-    <div id="question-text">What is 2 + 2?</div>
+    <div id="question-text">Welcome to NeuroQuest Island!</div>
     <div id="options-container">
-      <span class="option-label"><span class="letter">A</span>) 3</span>
-      <span class="option-label"><span class="letter">B</span>) 4</span>
-      <span class="option-label"><span class="letter">C</span>) 5</span>
-      <span class="option-label"><span class="letter">D</span>) 6</span>
+      <span class="option-label"><span class="letter">🍎</span> Food</span>
+      <span class="option-label"><span class="letter">💧</span> Water</span>
+      <span class="option-label"><span class="letter">🪵</span> Wood</span>
+      <span class="option-label"><span class="letter">💎</span> Treasure</span>
     </div>
+    <div id="stats-text">Score: 0% • Correct: 0 • Wrong: 0 • Question: 0/0</div>
   </div>
 
   <!-- Game Canvas -->
@@ -237,8 +245,8 @@
 
   <!-- Victory Modal -->
   <div id="victory-modal">
-    <h1>YOU WIN!</h1>
-    <p>All questions answered!<br>You are a Jungle Champion!</p>
+    <h1>ISLAND SAVED!</h1>
+    <p id="victory-summary">You completed NeuroQuest Island.</p>
   </div>
 
 </div>
@@ -263,41 +271,90 @@
   // ================================================================
   const questionEl = document.getElementById('question-text');
   const optionsEl = document.getElementById('options-container');
+  const statsEl = document.getElementById('stats-text');
   const flashOverlay = document.getElementById('flash-overlay');
   const redOverlay = document.getElementById('red-overlay');
   const restartBtn = document.getElementById('restart-btn');
   const victoryModal = document.getElementById('victory-modal');
+  const victorySummaryEl = document.getElementById('victory-summary');
 
   // ================================================================
   // 3) QUESTIONS DATA
   // ================================================================
-  const questions = [
+  const defaultQuestions = [
     {
-      question: 'What is 5 + 3?',
-      options: ['6', '7', '8', '9'],
+      question: 'What is photosynthesis?',
+      options: ['Food making process', 'Respiration', 'Digestion', 'Evaporation'],
+      correctIndex: 0
+    },
+    {
+      question: 'Which part of a plant absorbs water?',
+      options: ['Leaves', 'Stem', 'Roots', 'Flowers'],
       correctIndex: 2
     },
     {
-      question: 'Which animal says "Moo"?',
-      options: ['Dog', 'Cat', 'Cow', 'Bird'],
-      correctIndex: 2
-    },
-    {
-      question: 'What color are bananas?',
-      options: ['Red', 'Blue', 'Green', 'Yellow'],
-      correctIndex: 3
-    },
-    {
-      question: 'How many days are in a week?',
-      options: ['5', '6', '7', '8'],
-      correctIndex: 2
-    },
-    {
-      question: 'Where do fish live?',
-      options: ['Sky', 'Water', 'Land', 'Fire'],
-      correctIndex: 1
+      question: 'What do plants need to make food?',
+      options: ['Sunlight', 'Only moonlight', 'Only wind', 'Only sand'],
+      correctIndex: 0
     }
   ];
+
+  function normalizeQuestion(rawQuestion) {
+    if (!rawQuestion || typeof rawQuestion.question !== 'string' || !Array.isArray(rawQuestion.options)) {
+      return null;
+    }
+    if (rawQuestion.options.length !== 4) return null;
+    if (!Number.isInteger(rawQuestion.correctIndex) || rawQuestion.correctIndex < 0 || rawQuestion.correctIndex > 3) {
+      return null;
+    }
+    const options = rawQuestion.options.map(function (option) {
+      return String(option || '').trim();
+    });
+    if (options.some(function (option) { return option.length === 0; })) return null;
+    return {
+      question: rawQuestion.question.trim(),
+      options: options,
+      correctIndex: rawQuestion.correctIndex
+    };
+  }
+
+  function parseStoredQuestions() {
+    var fromWindow = window.NEUROQUEST_QUESTIONS;
+    if (Array.isArray(fromWindow)) return fromWindow;
+    try {
+      var saved = localStorage.getItem('neuroquest_questions');
+      if (!saved) return null;
+      var parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch (_err) {
+      return null;
+    }
+
+    function resolveStudentName() {
+      if (window.NEUROQUEST_PROFILE && typeof window.NEUROQUEST_PROFILE.name === 'string') {
+        return window.NEUROQUEST_PROFILE.name.trim();
+      }
+      try {
+        var profileRaw = localStorage.getItem('neuroquest_profile');
+        if (!profileRaw) return 'Student';
+        var profile = JSON.parse(profileRaw);
+        if (profile && typeof profile.name === 'string' && profile.name.trim()) {
+          return profile.name.trim();
+        }
+      } catch (_err) {
+        return 'Student';
+      }
+      return 'Student';
+    }
+  }
+
+  const loadedQuestions = parseStoredQuestions();
+  const questions = (loadedQuestions || defaultQuestions)
+    .map(normalizeQuestion)
+    .filter(function (q) { return !!q; });
+  if (!questions.length) {
+    Array.prototype.push.apply(questions, defaultQuestions);
+  }
 
   // ================================================================
   // 4) GAME STATE
@@ -324,18 +381,76 @@
     // Is the flash effect active? (correct answer)
     flashing: false,
     // Game over / all questions answered
-    gameComplete: false
+    gameComplete: false,
+    // Session metrics
+    correctAnswers: 0,
+    wrongAnswers: 0,
+    studentName: resolveStudentName()
   };
 
   // Default safe starting position (bottom-center crossroads)
   const START_X = 480;
   const START_Y = 610;
 
+  function applyIncomingQuestions(rawQuestions) {
+    if (!Array.isArray(rawQuestions)) return false;
+    const parsed = rawQuestions.map(normalizeQuestion).filter(function (q) { return !!q; });
+    if (!parsed.length) return false;
+    questions.splice(0, questions.length);
+    Array.prototype.push.apply(questions, parsed);
+    state.questionIndex = 0;
+    state.correctAnswers = 0;
+    state.wrongAnswers = 0;
+    state.playerX = START_X;
+    state.playerY = START_Y;
+    state.paused = false;
+    state.flashing = false;
+    state.gameComplete = false;
+    redOverlay.classList.remove('active');
+    restartBtn.style.display = 'none';
+    victoryModal.classList.remove('show');
+    updateHUD();
+    return true;
+  }
+
+  window.setNeuroQuestQuestions = function (rawQuestions) {
+    const ok = applyIncomingQuestions(rawQuestions);
+    if (ok) {
+      try {
+        localStorage.setItem('neuroquest_questions', JSON.stringify(rawQuestions));
+      } catch (_err) {
+        // ignore storage issues
+      }
+    }
+    return ok;
+  };
+
+  window.setNeuroQuestProfile = function (profile) {
+    if (!profile || typeof profile.name !== 'string' || !profile.name.trim()) return false;
+    state.studentName = profile.name.trim();
+    try {
+      localStorage.setItem('neuroquest_profile', JSON.stringify(profile));
+    } catch (_err) {
+      // ignore storage issues
+    }
+    return true;
+  };
+
+  window.addEventListener('message', function (event) {
+    if (!event || !event.data) return;
+    if (event.data.type === 'NEUROQUEST_SET_QUESTIONS') {
+      window.setNeuroQuestQuestions(event.data.questions);
+    }
+    if (event.data.type === 'NEUROQUEST_SET_PROFILE') {
+      window.setNeuroQuestProfile(event.data.profile);
+    }
+  });
+
   // ================================================================
   // 5) MAP DATA – Path network (nodes connected by thick lines)
   // ================================================================
   // Each path segment is an array of {x, y} points.
-  // The paths form a network from the bottom center up to 4 gates.
+  // The paths form a network from the bottom center up to 4 object zones.
   const pathSegments = [
     // Main trunk from starting area up
     [{ x: 480, y: 640 }, { x: 480, y: 460 }],
@@ -348,7 +463,7 @@
     // Right side branches
     [{ x: 720, y: 460 }, { x: 620, y: 300 }],
     [{ x: 720, y: 460 }, { x: 820, y: 300 }],
-    // Vertical paths up to gates
+    // Vertical paths up to object zones
     [{ x: 140, y: 300 }, { x: 140, y: 85 }],
     [{ x: 340, y: 300 }, { x: 340, y: 85 }],
     [{ x: 620, y: 300 }, { x: 620, y: 85 }],
@@ -359,15 +474,14 @@
   ];
 
   // ================================================================
-  // 6) GATE DEFINITIONS
+  // 6) ANSWER OBJECT DEFINITIONS
   // ================================================================
-  // Each gate sits at the top of a vertical path.
-  // The trigger zone is a rectangle just below the gate archway.
-  const gates = [
-    { letter: 'A', x: 140, y: 65, trigger: { x: 120, y: 80, w: 40, h: 18 } },
-    { letter: 'B', x: 340, y: 65, trigger: { x: 320, y: 80, w: 40, h: 18 } },
-    { letter: 'C', x: 620, y: 65, trigger: { x: 600, y: 80, w: 40, h: 18 } },
-    { letter: 'D', x: 820, y: 65, trigger: { x: 800, y: 80, w: 40, h: 18 } }
+  // Each object is placed at the top path branch.
+  const answerObjects = [
+    { label: 'Food', emoji: '🍎', x: 140, y: 62, trigger: { x: 116, y: 76, w: 48, h: 26 } },
+    { label: 'Water', emoji: '💧', x: 340, y: 62, trigger: { x: 316, y: 76, w: 48, h: 26 } },
+    { label: 'Wood', emoji: '🪵', x: 620, y: 62, trigger: { x: 596, y: 76, w: 48, h: 26 } },
+    { label: 'Treasure', emoji: '💎', x: 820, y: 62, trigger: { x: 796, y: 76, w: 48, h: 26 } }
   ];
 
   // ================================================================
@@ -724,111 +838,37 @@
     }
   }
 
-  // ---- 10f) Stone archway gates with wooden signs ----
-  function drawGate(gx, gy, letter) {
-    const pillarW = 14;
-    const pillarH = 50;
-    const archW = 40;
-    const archH = 20;
+  // ---- 10f) Island answer objects ----
+  function drawAnswerObject(slot) {
+    const gx = slot.x;
+    const gy = slot.y;
 
-    // Shadow
     ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    ctx.fillRect(gx - archW / 2 + 3, gy + 3, archW, pillarH + 8);
-
-    // Left pillar
-    ctx.fillStyle = '#8a8a7a';
-    ctx.fillRect(gx - archW / 2, gy + 8, pillarW, pillarH);
-    // Right pillar
-    ctx.fillRect(gx + archW / 2 - pillarW, gy + 8, pillarW, pillarH);
-    // Pillar stone lines
-    ctx.strokeStyle = '#6a6a5a';
-    ctx.lineWidth = 1;
-    for (let sy = gy + 14; sy < gy + pillarH + 4; sy += 7) {
-      ctx.beginPath();
-      ctx.moveTo(gx - archW / 2, sy);
-      ctx.lineTo(gx - archW / 2 + pillarW, sy);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(gx + archW / 2 - pillarW, sy);
-      ctx.lineTo(gx + archW / 2, sy);
-      ctx.stroke();
-    }
-
-    // Arch (stone curve at top)
-    ctx.fillStyle = '#8a8a7a';
     ctx.beginPath();
-    ctx.arc(gx, gy + 8, archW / 2, Math.PI, 0);
-    ctx.fill();
-    // Arch inner hole
-    ctx.fillStyle = '#2d1a0e'; // matches the dark ground inside the gate
-    ctx.beginPath();
-    ctx.arc(gx, gy + 8, archW / 2 - pillarW + 2, Math.PI, 0);
+    ctx.ellipse(gx, gy + 34, 26, 8, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Arch stone detail
-    ctx.strokeStyle = '#6a6a5a';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(gx, gy + 8, archW / 2, Math.PI, 0);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(gx, gy + 8, archW / 2 - pillarW + 2, Math.PI, 0);
-    ctx.stroke();
-
-    // Top decorative block
-    ctx.fillStyle = '#7a7a6a';
-    ctx.fillRect(gx - 8, gy - 2, 16, 6);
-    ctx.strokeStyle = '#5a5a4a';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(gx - 8, gy - 2, 16, 6);
-
-    // ---- Wooden sign above the arch ----
-    const signW = 44;
-    const signH = 16;
     ctx.fillStyle = '#8B6914';
-    ctx.fillRect(gx - signW / 2, gy - signH - 6, signW, signH);
+    ctx.fillRect(gx - 24, gy + 20, 48, 14);
     ctx.strokeStyle = '#5a4510';
     ctx.lineWidth = 2;
-    ctx.strokeRect(gx - signW / 2, gy - signH - 6, signW, signH);
-    // Sign wood grain
-    ctx.strokeStyle = '#7a5a12';
-    ctx.lineWidth = 1;
-    for (let sy = gy - signH - 3; sy < gy - 4; sy += 4) {
-      ctx.beginPath();
-      ctx.moveTo(gx - signW / 2 + 3, sy);
-      ctx.lineTo(gx + signW / 2 - 3, sy);
-      ctx.stroke();
-    }
-    // Sign nails
-    ctx.fillStyle = '#aaa';
-    ctx.fillRect(gx - signW / 2 + 3, gy - signH - 4, 3, 3);
-    ctx.fillRect(gx + signW / 2 - 6, gy - signH - 4, 3, 3);
-    ctx.fillRect(gx - signW / 2 + 3, gy - 5, 3, 3);
-    ctx.fillRect(gx + signW / 2 - 6, gy - 5, 3, 3);
+    ctx.strokeRect(gx - 24, gy + 20, 48, 14);
 
-    // Letter on sign
-    ctx.fillStyle = '#FFD700';
-    ctx.font = 'bold 14px "Press Start 2P", monospace';
+    ctx.fillStyle = '#f7e4b8';
+    ctx.beginPath();
+    ctx.arc(gx, gy + 8, 20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#c7a76f';
+    ctx.stroke();
+
+    ctx.font = '24px "Press Start 2P", monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.shadowColor = '#000';
-    ctx.shadowBlur = 3;
-    ctx.fillText(letter, gx, gy - signH + 1);
-    ctx.shadowBlur = 0;
-  }
+    ctx.fillText(slot.emoji, gx, gy + 9);
 
-  // ---- 10g) Finish line (checkered pattern) at each gate entrance ----
-  function drawFinishLine(gx, gy) {
-    const fx = gx - 18;
-    const fy = gy;
-    const fw = 36;
-    const fh = 8;
-    for (let row = 0; row < 2; row++) {
-      for (let col = 0; col < 6; col++) {
-        ctx.fillStyle = (row + col) % 2 === 0 ? '#fff' : '#222';
-        ctx.fillRect(fx + col * (fw / 6), fy + row * (fh / 2), fw / 6, fh / 2);
-      }
-    }
+    ctx.fillStyle = '#ffd700';
+    ctx.font = '8px "Press Start 2P", monospace';
+    ctx.fillText(slot.label.toUpperCase(), gx, gy + 27);
   }
 
   // ---- 10h) The player character (cute pixel-art explorer) ----
@@ -1032,24 +1072,24 @@
       state.playerY = newY;
     }
 
-    // ---- Check gate triggers ----
-    for (let i = 0; i < gates.length; i++) {
-      const g = gates[i];
-      if (pointInRect(state.playerX, state.playerY, g.trigger)) {
-        handleGateEntry(i);
-        break; // only trigger one gate at a time
+    // ---- Check answer object triggers ----
+    for (let i = 0; i < answerObjects.length; i++) {
+      const slot = answerObjects[i];
+      if (pointInRect(state.playerX, state.playerY, slot.trigger)) {
+        handleObjectSelection(i);
+        break; // only trigger one object at a time
       }
     }
   }
 
   // ================================================================
-  // 13) GATE ENTRY – Answer checking
+  // 13) OBJECT SELECTION – Answer checking
   // ================================================================
-  function handleGateEntry(gateIndex) {
+  function handleObjectSelection(selectedIndex) {
     if (state.paused || state.flashing || state.gameComplete) return;
 
     const q = questions[state.questionIndex];
-    const isCorrect = (gateIndex === q.correctIndex);
+    const isCorrect = (selectedIndex === q.correctIndex);
 
     if (isCorrect) {
       handleCorrectAnswer();
@@ -1061,8 +1101,43 @@
   // ================================================================
   // 14) CORRECT ANSWER – Flashbang effect
   // ================================================================
+  function buildSessionSummary() {
+    const totalQuestions = questions.length || 1;
+    const score = Math.round((state.correctAnswers / totalQuestions) * 100);
+    return {
+      studentName: state.studentName,
+      score: score,
+      correctAnswers: state.correctAnswers,
+      wrongAnswers: state.wrongAnswers,
+      chaptersCompleted: 1,
+      gameProgress: 'completed',
+      answeredQuestions: state.correctAnswers + state.wrongAnswers,
+      totalQuestions: questions.length,
+      completedAt: new Date().toISOString()
+    };
+  }
+
+  function publishSessionSummary() {
+    const summary = buildSessionSummary();
+    try {
+      localStorage.setItem('neuroquest_last_session', JSON.stringify(summary));
+    } catch (_err) {
+      // ignore storage failures in restricted environments
+    }
+    window.NEUROQUEST_LAST_SESSION = summary;
+    window.dispatchEvent(new CustomEvent('neuroquest:sessionComplete', { detail: summary }));
+    if (victorySummaryEl) {
+      victorySummaryEl.innerHTML =
+        'Score: ' + summary.score + '%<br>' +
+        'Correct: ' + summary.correctAnswers + ' / ' + summary.totalQuestions + '<br>' +
+        'Great work, explorer!';
+    }
+  }
+
   function handleCorrectAnswer() {
     state.flashing = true;
+    state.correctAnswers++;
+    updateHUD();
 
     // Trigger white flash
     flashOverlay.classList.add('active');
@@ -1075,6 +1150,7 @@
       if (state.questionIndex >= questions.length) {
         // All questions answered – victory!
         state.gameComplete = true;
+        publishSessionSummary();
         victoryModal.classList.add('show');
         flashOverlay.classList.remove('active');
         state.flashing = false;
@@ -1103,6 +1179,8 @@
   // ================================================================
   function handleWrongAnswer() {
     state.paused = true;
+    state.wrongAnswers++;
+    updateHUD();
 
     // Show red damage overlay
     redOverlay.classList.add('active');
@@ -1131,17 +1209,21 @@
   // 17) UPDATE HUD
   // ================================================================
   function updateHUD() {
+    const total = questions.length || 1;
+    const score = Math.round((state.correctAnswers / total) * 100);
+    statsEl.textContent = 'Score: ' + score + '% • Correct: ' + state.correctAnswers + ' • Wrong: ' + state.wrongAnswers + ' • Question: ' + Math.min(state.questionIndex + 1, questions.length) + '/' + questions.length;
+
     if (state.questionIndex >= questions.length) {
-      questionEl.textContent = 'All questions completed!';
+      questionEl.textContent = 'Island mission complete!';
       optionsEl.innerHTML = '';
       return;
     }
     const q = questions[state.questionIndex];
     questionEl.textContent = 'Q' + (state.questionIndex + 1) + ': ' + q.question;
-    const letters = ['A', 'B', 'C', 'D'];
+    const icons = ['🍎', '💧', '🪵', '💎'];
     let html = '';
     for (let i = 0; i < q.options.length; i++) {
-      html += '<span class="option-label"><span class="letter">' + letters[i] + '</span>) ' + q.options[i] + '</span>';
+      html += '<span class="option-label"><span class="letter">' + icons[i] + '</span> ' + q.options[i] + '</span>';
     }
     optionsEl.innerHTML = html;
   }
@@ -1172,14 +1254,9 @@
     // Animals
     drawAnimals();
 
-    // Finish lines at each gate entrance
-    for (const g of gates) {
-      drawFinishLine(g.x, g.trigger.y);
-    }
-
-    // Gates (drawn after finish lines so they appear on top)
-    for (const g of gates) {
-      drawGate(g.x, g.y, g.letter);
+    // Collectible answer objects
+    for (const slot of answerObjects) {
+      drawAnswerObject(slot);
     }
 
     // Character
